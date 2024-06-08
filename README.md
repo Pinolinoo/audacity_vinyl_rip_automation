@@ -24,7 +24,12 @@ Enter the Discogs ID
 
 Wait for the script to apply click removal, a Low Cut EQ at 20HZ and then for it to export all your tracks. 
 
+DO NOT click anywhere else during the export, because the applescript will relies on being in the right location and it will start filling in different windows if you click somewhere else.
+
 Note: The default settings in your audacity export window will be used. I tested this with MP3 320. Maybe for wav there could be issues with the metadata. 
+Note2: Some releases give errors, I haven't figured out why yet. Try with a different one, maybe you find the bug and can help me. 
+
 
 I am not a professional developer so might be very buggy. But feel free to use xx
+
 
