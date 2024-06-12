@@ -8,7 +8,11 @@ Audacity
 Internet Connection
 Dope Records
 
-Instruction: 
+
+IMPORTANT: while the script is running do not change your cursor (click anywhere) otherwise the apple script will fill out stuff in the wrong areas. 
+IMPORTANT2: The folder you export will be filled with a folder for the album you're exporting. If you repeat this step delete the folder that was created otherwise the apple script will skip the first track because the warning "folder does not exist" will not pop up. 
+
+Instructions: 
 
 Record your record in audacity.
 Set Text Marks at the beginning of each track. 
