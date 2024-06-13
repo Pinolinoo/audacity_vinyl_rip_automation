@@ -12,6 +12,49 @@ import subprocess
 # Platform specific file name and file path.
 # PATH is the location of files to be imported / exported.
 
+# ========================
+# ====   Begin i18n   ====
+# ========================
+LOCALIZED_STRINGS = {
+    'en': {
+        'export_button': "Export"
+    },
+    'de': {
+        'export_button': "Exportieren"
+    }
+}
+
+def get_audacity_language():
+    config_file = os.path.expanduser('~/Library/Application Support/audacity/audacity.cfg')
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"The configuration file {config_file} does not exist.")
+
+    language = None
+    with open(config_file, 'r') as file:
+        lines = file.readlines()
+        in_locale_section = False
+        for line in lines:
+            if line.strip() == '[Locale]':
+                in_locale_section = True
+            elif in_locale_section:
+                if line.startswith('Language='):
+                    language = line.split('=')[1].strip()
+                    break
+    return language
+
+language_code = None
+language_code = language_code or get_audacity_language()
+
+def get_localized_string(key,):
+    return LOCALIZED_STRINGS.get(language_code, {}).get(key, key)
+
+export_button_text = None
+export_button_text = export_button_text or get_localized_string('export_button')
+# ======================
+# ====   End i18n   ====
+# ======================
+
+
 #PATH = './'
 PATH = ""
 while not os.path.isdir(PATH):
@@ -182,7 +225,7 @@ apple_script_lines = [
     f'            keystroke "{outputfolder}"',
     '            delay 0.2 -- Ensure the text is entered properly',
     '            -- Press the "exportieren" button',
-    '            click button "Exportieren"',
+    f'            click button "{export_button_text}"',
     '            delay 0.2',
     '        end tell',
     '        keystroke return',
