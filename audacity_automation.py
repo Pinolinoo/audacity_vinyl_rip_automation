@@ -12,49 +12,6 @@ import subprocess
 # Platform specific file name and file path.
 # PATH is the location of files to be imported / exported.
 
-# ========================
-# ====   Begin i18n   ====
-# ========================
-LOCALIZED_STRINGS = {
-    'en': {
-        'export_button': "Export"
-    },
-    'de': {
-        'export_button': "Exportieren"
-    }
-}
-
-def get_audacity_language():
-    config_file = os.path.expanduser('~/Library/Application Support/audacity/audacity.cfg')
-    if not os.path.exists(config_file):
-        raise FileNotFoundError(f"The configuration file {config_file} does not exist.")
-
-    language = None
-    with open(config_file, 'r') as file:
-        lines = file.readlines()
-        in_locale_section = False
-        for line in lines:
-            if line.strip() == '[Locale]':
-                in_locale_section = True
-            elif in_locale_section:
-                if line.startswith('Language='):
-                    language = line.split('=')[1].strip()
-                    break
-    return language
-
-language_code = None
-language_code = language_code or get_audacity_language()
-
-def get_localized_string(key,):
-    return LOCALIZED_STRINGS.get(language_code, {}).get(key, key)
-
-export_button_text = None
-export_button_text = export_button_text or get_localized_string('export_button')
-# ======================
-# ====   End i18n   ====
-# ======================
-
-
 #PATH = './'
 PATH = ""
 while not os.path.isdir(PATH):
@@ -200,13 +157,39 @@ def get_discogs_metadata(release_id):
         print(f"Error fetching metadata: {e}")
         sys.exit(1)
 
-click_removal_and_eq()
+
 
 print("Getting metadata from Discogs")
 metadata = get_discogs_metadata(int(discogs_id))
 
+import re
+
+def remove_parentheses(content):
+    if isinstance(content, dict):
+        return {key: remove_parentheses(value) for key, value in content.items()}
+    elif isinstance(content, list):
+        return [remove_parentheses(element) for element in content]
+    elif isinstance(content, str):
+        return re.sub(r'\s*\(\d+\)', '', content).strip()
+    else:
+        return content
+
+metadata = remove_parentheses(metadata)
+
+#click_removal_and_eq()
+
+print(metadata)
+
+click_removal_and_eq()
+
 outputfolder = os.path.join(PATH, f"{metadata['artist']}_{metadata['release_title']}")
 no_tracks = len(metadata['tracks'])
+
+# Function to escape " ' "
+def escape_double_quotes(text):
+    text =  text.replace("'", "")
+    text =  text.replace('"', '')
+    return text
 
 
 # Generate the AppleScript dynamically
@@ -222,10 +205,10 @@ apple_script_lines = [
     '        delay 0.5 -- Adjust delay as needed',
     '        -- Ensure the dialog is focused',
     '        tell window 1',
-    f'            keystroke "{outputfolder}"',
+    f'            keystroke "{escape_double_quotes(outputfolder)}"',
     '            delay 0.2 -- Ensure the text is entered properly',
     '            -- Press the "exportieren" button',
-    f'            click button "{export_button_text}"',
+    '            click button "Exportieren"',
     '            delay 0.2',
     '        end tell',
     '        keystroke return',
@@ -233,8 +216,8 @@ apple_script_lines = [
 
 # Add the repeated sections for each track
 for i, track in enumerate(metadata['tracks']):
-    artist = track['artists']
-    title = track['title']
+    artist = escape_double_quotes(track['artists'])
+    title = escape_double_quotes(track['title'])
     apple_script_lines.extend([
         '        tell window 2',
         '            keystroke tab',
@@ -251,7 +234,7 @@ for i, track in enumerate(metadata['tracks']):
         '            delay 0.2',
         '            keystroke tab',
         '            delay 0.2',
-        f'            keystroke "{metadata["release_title"]}"',
+        f'            keystroke "{escape_double_quotes(metadata["release_title"])}"',
         '            delay 0.2',
         '            keystroke tab',
         '            delay 0.2',
@@ -267,14 +250,14 @@ for i, track in enumerate(metadata['tracks']):
         '            delay 0.2',
         '            keystroke tab',
         '            delay 0.2',
-        f'            keystroke "{metadata["genre"]}"',
+        f'            keystroke "{escape_double_quotes(metadata["genre"])}"',
         '            delay 0.2',
         '            delay 0.2',
         '            keystroke tab',
         '            delay 0.2',
         '            keystroke tab',
         '            delay 0.2',
-        f'            keystroke "{metadata["label"]}"',
+        f'            keystroke "{escape_double_quotes(metadata["label"])}"',
         '            delay 0.5',
         '            keystroke return',
         '            delay 0.2',
@@ -293,7 +276,6 @@ apple_script_lines.extend([
 # Join the AppleScript lines into a single string
 apple_script = "\n".join(apple_script_lines)
 
-#print(apple_script)
 
 # Execute the AppleScript using os.system()
 os.system(f"osascript -e '{apple_script}'")
