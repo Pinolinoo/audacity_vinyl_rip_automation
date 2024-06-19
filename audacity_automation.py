@@ -176,8 +176,6 @@ def remove_parentheses(content):
 
 metadata = remove_parentheses(metadata)
 
-#click_removal_and_eq()
-
 print(metadata)
 
 click_removal_and_eq()
