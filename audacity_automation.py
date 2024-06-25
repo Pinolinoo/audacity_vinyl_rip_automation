@@ -3,14 +3,66 @@ import sys
 import time
 import json
 import discogs_client
-import os
 import subprocess
+import mutagen
+from mutagen.easyid3 import EasyID3
+from datetime import datetime
+
+EasyID3.RegisterTextKey('comment', 'COMM')
+start_time = time.time()
 
 #import requests
 #from bs4 import BeautifulSoup
 
 # Platform specific file name and file path.
 # PATH is the location of files to be imported / exported.
+
+# ========================
+# ====   Begin i18n   ====
+# ========================
+LOCALIZED_STRINGS = {
+    'en': {
+        'export_button': 'Export',
+        'metadata_window': 'Edit Metadata Tags'
+    },
+    'de': {
+        'export_button': 'Exportieren',
+        'metadata_window': 'Tag-Metadaten bearbeiten'
+    }
+}
+
+def get_audacity_language():
+    config_file = os.path.expanduser('~/Library/Application Support/audacity/audacity.cfg')
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"The configuration file {config_file} does not exist.")
+
+    language = None
+    with open(config_file, 'r') as file:
+        lines = file.readlines()
+        in_locale_section = False
+        for line in lines:
+            if line.strip() == '[Locale]':
+                in_locale_section = True
+            elif in_locale_section:
+                if line.startswith('Language='):
+                    language = line.split('=')[1].strip()
+                    break
+    return language
+
+language_code = None
+language_code = language_code or get_audacity_language()
+
+def get_localized_string(key,):
+    return LOCALIZED_STRINGS.get(language_code, {}).get(key, key)
+
+export_button_text = None
+export_button_text = export_button_text or get_localized_string('export_button')
+metadata_window_text = None
+metadata_window_text = metadata_window_text or get_localized_string('metadata_window')
+# ======================
+# ====   End i18n   ====
+# ======================
+
 
 #PATH = './'
 PATH = ""
@@ -134,7 +186,7 @@ def get_discogs_metadata(release_id):
         # Replace 'YOUR_DISCOGS_USER_TOKEN' with your actual Discogs user token
         client = discogs_client.Client('ExampleApplication/0.1', user_token='iZxvHXuswSUINSmuLqAAMOAgCkCznoKcmjZVqfsU')
         release = client.release(release_id)
-        
+
         metadata = {
             'release_title': release.title,
             'artist': ', '.join(artist.name for artist in release.artists),
@@ -143,7 +195,7 @@ def get_discogs_metadata(release_id):
             'label': ', '.join(label.name for label in release.labels),
             'tracks': []
         }
-        
+
         for track in release.tracklist:
             track_info = {
                 'title': track.title,
@@ -151,7 +203,7 @@ def get_discogs_metadata(release_id):
                 'artists': ', '.join(artist.name for artist in track.artists) if track.artists else metadata['artist']
             }
             metadata['tracks'].append(track_info)
-        
+
         return metadata
     except Exception as e:
         print(f"Error fetching metadata: {e}")
@@ -206,64 +258,20 @@ apple_script_lines = [
     f'            keystroke "{escape_double_quotes(outputfolder)}"',
     '            delay 0.2 -- Ensure the text is entered properly',
     '            -- Press the "exportieren" button',
-    '            click button "Exportieren"',
+    f'            click button "{export_button_text}"',
     '            delay 0.2',
     '        end tell',
-    '        keystroke return',
 ]
 
 # Add the repeated sections for each track
 for i, track in enumerate(metadata['tracks']):
-    artist = escape_double_quotes(track['artists'])
-    title = escape_double_quotes(track['title'])
     apple_script_lines.extend([
-        '        tell window 2',
-        '            keystroke tab',
-        '            delay 0.2',
-        f'            keystroke "{artist}"',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        f'            keystroke "{title}"',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        f'            keystroke "{escape_double_quotes(metadata["release_title"])}"',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        f'            keystroke "{metadata["year"]}"',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        f'            keystroke "{escape_double_quotes(metadata["genre"])}"',
-        '            delay 0.2',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        '            keystroke tab',
-        '            delay 0.2',
-        f'            keystroke "{escape_double_quotes(metadata["label"])}"',
-        '            delay 0.5',
-        '            keystroke return',
-        '            delay 0.2',
-        '            keystroke return',
-        '            delay 0.2',
-        '            keystroke return',
-        '        end tell',
-        '        delay 1',  # Ensure there's a delay between each export
+        f"""
+            delay 1
+            if exists window "{metadata_window_text}" then
+                tell application "System Events" to tell process "Audacity" to tell button "OK" of window "{metadata_window_text}" to perform action "AXPress"
+            end if
+        """
     ])
 
 apple_script_lines.extend([
@@ -278,4 +286,88 @@ apple_script = "\n".join(apple_script_lines)
 # Execute the AppleScript using os.system()
 os.system(f"osascript -e '{apple_script}'")
 
-print("Wait until Export is over.")
+
+# Wait until output directory has all files
+print("Waiting for file export to finish", end='')
+timeout_timer = 0
+last_file_count = 0
+while True:
+    files = [
+        f for f in os.listdir(outputfolder)
+        if os.path.isfile(os.path.join(outputfolder, f)) and
+        os.path.getctime(os.path.join(outputfolder, f)) >= start_time
+    ]
+
+    if len(files) > last_file_count:
+        last_file_count = len(files)
+        timeout_timer = 0
+    else:
+        timeout_timer += 1
+
+    if timeout_timer >= 20:
+        print()
+        print(("ERROR: Exported file count does not match discogs track count. "
+              "Please check the contents of your export folder and/or the number "
+              "of text labels in the Audacity project and try again."))
+        sys.exit(1)
+
+    if len(files) == no_tracks:
+        break
+    else:
+        print(".", end='')
+        sys.stdout.flush()
+
+    time.sleep(1)
+
+print()
+print("Writing tags and file names...")
+
+def get_mp3_files(directory):
+    """Retrieve all mp3 files in the directory and sort them by creation date."""
+    files = []
+    for file in os.listdir(directory):
+        if file.endswith(".mp3") and os.path.getctime(os.path.join(outputfolder, file)) >= start_time:
+            file_path = os.path.join(directory, file)
+            creation_time = os.path.getctime(file_path)
+            files.append((file_path, creation_time))
+    files.sort(key=lambda x: x[1])  # Sort by creation time
+    return [file[0] for file in files]
+
+def update_metadata(file_path, track, i):
+    audio = EasyID3(file_path)
+    audio['artist'] = escape_double_quotes(track['artists'])
+    audio['title'] = escape_double_quotes(track['title'])
+    audio['album'] = escape_double_quotes(metadata['release_title'])
+    audio['date'] = str(metadata['year'])
+    audio['genre'] = escape_double_quotes(metadata['genre'])
+    audio['comment'] = escape_double_quotes(metadata['label'])
+    audio['tracknumber'] = str(i + 1)
+    audio.save()
+
+def build_filenames_from_discogs_data():
+    filenames = []
+    for i, track in enumerate(metadata['tracks']):
+        formatted_index = f"{i + 1:02}"
+        filename = f"{formatted_index} {track['artists']} - {track['title']}"
+        filenames.append(filename)
+    return filenames
+
+new_names = build_filenames_from_discogs_data()
+mp3_files = get_mp3_files(outputfolder)
+
+if len(mp3_files) != len(metadata['tracks']):
+    print("The number of MP3 files does not match the number of metadata entries.")
+    sys.exit(1)
+
+try:
+    for i, (file_path, track, new_file_name) in enumerate(zip(mp3_files, metadata['tracks'], new_names)):
+        update_metadata(file_path, track, i)
+        _, file_extension = os.path.splitext(file_path)
+        new_file = os.path.join(outputfolder, new_file_name + file_extension)
+        os.rename(file_path, new_file)
+except Exception as e:
+    print(f"An error occurred: {e}")
+    sys.exit(1)
+
+print(f'Files successfully processed to {outputfolder}')
+print('Done.')
