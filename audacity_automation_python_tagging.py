@@ -11,12 +11,6 @@ from datetime import datetime
 EasyID3.RegisterTextKey('comment', 'COMM')
 start_time = time.time()
 
-#import requests
-#from bs4 import BeautifulSoup
-
-# Platform specific file name and file path.
-# PATH is the location of files to be imported / exported.
-
 # ========================
 # ====   Begin i18n   ====
 # ========================
@@ -134,52 +128,12 @@ def do_command(command):
     print("Rcvd: <<< " + response)
     return response
 
-
-def play_record(filename):
-    """Import track and record to new track.
-    Note that a stop command is not required as playback will stop at end of selection.
-    """
-    do_command(f"Import2: Filename={os.path.join(PATH, filename + '.wav')}")
-    do_command("Select: Track=0")
-    do_command("SelTrackStartToEnd")
-    # Our imported file has one clip. Find the length of it.
-    clipsinfo = do_command("GetInfo: Type=Clips")
-    clipsinfo = clipsinfo[:clipsinfo.rfind('BatchCommand finished: OK')]
-    clips = json.loads(clipsinfo)
-    duration = clips[0]['end'] - clips[0]['start']
-    # Now we can start recording.
-    do_command("Record2ndChoice")
-    print('Sleeping until recording is complete...')
-    time.sleep(duration + 0.1)
-
-
-def export_tracks(filename):
-    """Export the new track, and deleted both tracks."""
-    do_command("Select: Track=1 mode=Set")
-    do_command("SelTrackStartToEnd")
-    do_command(f"Export2: Filename={os.path.join(PATH, filename)} NumChannels=1.0")
-
-def import_track(filename):
-    """Import track and record to new track.
-    Note that a stop command is not required as playback will stop at end of selection.
-    """
-    do_command(f"Import2: Filename={os.path.join(PATH, filename + '.wav')}")
-    do_command("Select: Track=0")
-    do_command("SelTrackStartToEnd")
-
-def set_track_marks():
-    """ setting the marks where the tracks shall be cut"""
-    print("please manually select the marks where the tracks start. (got to the region and press cmd-b)")
-    input("When finished: Press any key to continue")
-
-
 def click_removal_and_eq():
     print("performing Click-Removal and EQ")
     do_command("Select: Track=0")
     do_command("SelTrackStartToEnd")
     do_command('FilterCurve:f0="22,933945" f1="24,657648" FilterLength="8191" InterpolateLin="0" InterpolationMethod="B-spline" v0="-29,866962" v1="-0,066518784"')
     do_command('ClickRemoval:Threshold="200" Width="20"')
-
 
 def get_discogs_metadata(release_id):
     try:
@@ -210,10 +164,11 @@ def get_discogs_metadata(release_id):
         sys.exit(1)
 
 
-
 print("Getting metadata from Discogs")
 metadata = get_discogs_metadata(int(discogs_id))
 
+# TODO: Can probably be removed now that we aren't interpolating metadata into
+#   apple script
 import re
 
 def remove_parentheses(content):
@@ -229,6 +184,7 @@ def remove_parentheses(content):
 metadata = remove_parentheses(metadata)
 
 print(metadata)
+# ---- END TODO ----
 
 click_removal_and_eq()
 
